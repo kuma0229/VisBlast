@@ -20,9 +20,9 @@ VisBlast <- function(query_gff,
                      subject_gff,
                      blast_tsv,
                      output = "synteny.png",
-                     target_genes = c("geneA"),
-                     target_labels = c("geneA"),
-                     target_colors = c("#ec6800"),
+                     target_genes = NULL,
+                     target_labels = NULL,
+                     target_colors = NULL,
                      query_color = "#028760",
                      subject_color = "#028760",
                      query_label = "Query",
@@ -44,7 +44,11 @@ VisBlast <- function(query_gff,
   if(!file.exists(subject_gff)) stop("subject_gff file does not exist.")
   if(!file.exists(blast_tsv)) stop("blast_tsv file does not exist.")
 
-  # targetチェック
+  # ターゲット関連の初期化
+  if(is.null(target_genes)) target_genes <- character(0)
+  if(is.null(target_labels)) target_labels <- character(0)
+  if(is.null(target_colors)) target_colors <- rep("#ec6800", max(1,length(target_genes)))
+
   len_genes <- length(target_genes)
   if(length(target_labels) != len_genes) target_labels <- rep(target_labels[1], len_genes)
   if(length(target_colors) != len_genes) target_colors <- rep(target_colors[1], len_genes)
@@ -74,7 +78,7 @@ VisBlast <- function(query_gff,
     labels <- rep("", n)
     for(i in seq_len(n)){
       idx <- match(df$attributes[i], target_genes)
-      if(!is.na(idx) && idx <= length(target_labels)) labels[i] <- target_labels[idx]
+      if(!is.na(idx)) labels[i] <- target_labels[idx]
     }
     df %>% mutate(
       xmin=start, xmax=end, y_center=y_center,
@@ -89,15 +93,15 @@ VisBlast <- function(query_gff,
   subject_arrow <- arrow_df(subject_genes,0,subject_color,target_genes,target_labels)
   label_df <- query_arrow %>% filter(label!="")
 
-  # バンド作成（alpha=pident, target_geneにはidentity_labelを追加）
-  if(nrow(target_blast)>0){
+  # バンド作成
+  if(nrow(target_blast) > 0){
     band_df <- do.call(rbind, lapply(1:nrow(target_blast), function(i){
-      # query 側と subject 側の attributes が target_genes に含まれるかチェック
       q_overlap <- query_genes %>% filter(start <= target_blast$qend[i] & end >= target_blast$qstart[i])
       s_overlap <- subject_genes %>% filter(start <= target_blast$send[i] & end >= target_blast$sstart[i])
       attr_values <- c(q_overlap$attributes, s_overlap$attributes)
       idx <- which(attr_values %in% target_genes)
       is_target <- length(idx) > 0
+
       color <- if(is_target) target_colors[idx[1]] else "#7b7c7d"
       identity_label <- if(is_target) paste0(round(target_blast$pident[i],1), "%") else NA
       type <- if(is_target) "Target gene" else "Other gene"
@@ -112,10 +116,9 @@ VisBlast <- function(query_gff,
         identity_label = identity_label
       )
     }))
-    band_df$alpha <- scales::rescale(band_df$pident, to=c(0.3,1))
   } else band_df <- data.frame(
     x=numeric(0), y=numeric(0), group=integer(0), color=character(0),
-    pident=numeric(0), type=character(0), alpha=numeric(0), identity_label=character(0)
+    pident=numeric(0), type=character(0), identity_label=character(0)
   )
 
   # 背景
@@ -130,7 +133,17 @@ VisBlast <- function(query_gff,
     geom_rect(data=subject_bg,aes(xmin=xmin_all,xmax=xmax_all,ymin=y,ymax=y+2),fill="#595857") +
     geom_text(aes(x=xmin_all-10,y=110,label=query_label),hjust=1,vjust=0,size=5,fontface="bold") +
     geom_text(aes(x=xmin_all-10,y=10,label=subject_label),hjust=1,vjust=0,size=5,fontface="bold") +
-    geom_polygon(data=band_df,aes(x=x,y=y,group=group,fill=color,alpha=pident)) +
+
+    # ターゲットバンド
+    geom_polygon(data=band_df %>% filter(type=="Target gene"),
+                 aes(x=x, y=y, group=group, fill=color),
+                 alpha=0.8) +
+
+    # 灰色バンド
+    geom_polygon(data=band_df %>% filter(type=="Other gene"),
+                 aes(x=x, y=y, group=group, fill=color, alpha=pident)) +
+    scale_alpha_continuous(name="BLAST Identity (%)", range=c(0.3,0.8)) +
+
     geom_text(data=band_df %>% filter(!is.na(identity_label)),
               aes(x=(x[1]+x[2])/2, y=50, label=identity_label),
               color="black", size=3, fontface="bold") +
@@ -139,8 +152,8 @@ VisBlast <- function(query_gff,
     geom_segment(data=subject_arrow,aes(x=xstart,xend=xend,y=y_center+1,yend=y_center+1,color=color),
                  arrow=arrow(length=unit(0.4,"cm"),type="closed"),size=2) +
     geom_text(data=label_df,aes(x=(xmin+xmax)/2,y=y_center+8,label=label),color="red",size=4,fontface="bold") +
+
     scale_fill_identity() +
-    scale_alpha_continuous(name="BLAST identity (%)", range=c(0.3,1)) +
     scale_color_identity() +
     xlab("Position (bp)") + ylab("") +
     theme_minimal() +
@@ -152,7 +165,7 @@ VisBlast <- function(query_gff,
   if(!is.null(output)){
     out_dir <- dirname(output)
     if(!dir.exists(out_dir) && out_dir!=".") dir.create(out_dir,recursive=TRUE)
-    ggsave(output,gg,width=plot_width,height=plot_height)
+    ggsave(output, gg, width=plot_width, height=plot_height)
   }
 
   return(gg)
