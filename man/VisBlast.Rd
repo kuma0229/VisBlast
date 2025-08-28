@@ -16,7 +16,10 @@ VisBlast(
   subject_color = "#028760",
   query_label = "Query",
   subject_label = "Subject",
+<<<<<<< HEAD
   swap_axes = FALSE,
+=======
+>>>>>>> 95e12c7 (Update VisBlast function and documentation (v2))
   plot_width = 10,
   plot_height = 6
 )
@@ -44,8 +47,11 @@ VisBlast(
 
 \item{subject_label}{Label to display at the left of the subject line}
 
+<<<<<<< HEAD
 \item{swap_axes}{Logical, if TRUE swap query and subject vertical positions}
 
+=======
+>>>>>>> 95e12c7 (Update VisBlast function and documentation (v2))
 \item{plot_width}{Width of output PNG (default 10)}
 
 \item{plot_height}{Height of output PNG (default 6)}
